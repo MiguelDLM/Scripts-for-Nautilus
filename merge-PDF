@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# The name of the output file
+output="$(dirname "$1")/new_document.pdf"
+
+# Create an array to hold the PDF files
+pdf_files=()
+
+# Loop over all selected files
+for file in "$@"
+do
+    # Get the file extension
+    extension="${file##*.}"
+
+    # Check if the file is an image
+    if [[ "$extension" =~ ^(jpg|jpeg|png|gif)$ ]]
+    then
+        # Convert the image to PDF and add it to the array
+        pdf_file="${file%.*}.pdf"
+        convert "$file" "$pdf_file"
+        pdf_files+=("$pdf_file")
+    else
+        # Add the PDF file to the array
+        pdf_files+=("$file")
+    fi
+done
+
+# Merge the PDF files
+pdftk "${pdf_files[@]}" cat output "$output"
