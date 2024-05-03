@@ -1,0 +1,8 @@
+#!/bin/bash
+for file in "$@"
+do
+    if [[ $file == *.py ]]
+    then
+        gnome-terminal -- /home/miguel/.pyenv/versions/3.9.0/bin/python3 "$file"
+    fi
+done
