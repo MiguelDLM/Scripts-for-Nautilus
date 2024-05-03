@@ -1,10 +1,24 @@
 #!/bin/bash
 
-# The name of the output file
-output="$(dirname "$1")/new_document.pdf"
+# The base name of the output file
+output_base="$(dirname "$1")/new_document"
 
 # Create an array to hold the PDF files
 pdf_files=()
+
+# Check if only one file is selected and it's a PDF
+if [[ $# -eq 1 && "${1##*.}" == "pdf" ]]; then
+    # Find a unique name for the output file
+    counter=1
+    output="${output_base}.pdf"
+    while [[ -e "$output" ]]; do
+        output="${output_base}(${counter}).pdf"
+        let counter++
+    done
+
+    cp "$1" "$output"
+    exit 0
+fi
 
 # Loop over all selected files
 for file in "$@"
@@ -25,5 +39,21 @@ do
     fi
 done
 
+# Find a unique name for the output file
+counter=1
+output="${output_base}.pdf"
+while [[ -e "$output" ]]; do
+    output="${output_base}(${counter}).pdf"
+    let counter++
+done
+
 # Merge the PDF files
 pdftk "${pdf_files[@]}" cat output "$output"
+
+# Remove individual PDF files
+for file in "${pdf_files[@]}"
+do
+    if [[ "$file" != "$output" ]]; then
+        rm "$file"
+    fi
+done
