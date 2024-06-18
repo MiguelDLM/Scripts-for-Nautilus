@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import platform
 import subprocess
 
 def contiene_def_parms(file_path):
@@ -12,12 +13,14 @@ def contiene_def_parms(file_path):
     return False
 
 def execute_program(file):
-    if os.path.isfile("/usr/bin/gnome-terminal"):
-        fossils_path = "/home/miguel/fossils/fossils"
-        subprocess.Popen(['gnome-terminal', '-e', f'"{fossils_path}" "{file}" --nogui'])
-    else:
-        print("gnome-terminal is not installed. Please install gnome-terminal to run the script.")
-        return
+    if platform.system() == "Linux":
+        if os.path.isfile("/usr/bin/gnome-terminal"):
+            wine_command = "wine" if os.path.isfile("/usr/bin/wine") else "wine64"
+            wine_path = os.path.expanduser("~/.wine/drive_c/Program Files (x86)/Fossils/fossils.exe")
+            subprocess.Popen(['gnome-terminal', '-e', f'{wine_command} "{wine_path}" "{file}" --nogui'])
+        else:
+            print("gnome-terminal is not installed. Please install gnome-terminal to run the script.")
+            return
 
 def main():
     # Get the selected files from the environment variable
