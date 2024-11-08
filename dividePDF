@@ -1,0 +1,96 @@
+#!/bin/bash
+
+main() {
+    FILE="$1"
+
+    if [[ -z "$FILE" || "${FILE##*.}" != "pdf" ]]; then
+        zenity --error --text="Please select a valid PDF file."
+        exit 1
+    fi
+
+    PAGES=$(pdftk "$FILE" dump_data | grep NumberOfPages | awk '{print $2}')
+    OPTION=$(zenity --list --title="Choose split option" --radiolist --column="Select" --column="Option" TRUE "Divide into x files" FALSE "Number of pages per file" FALSE "Extract pages" --width=400 --height=200)
+
+    case $OPTION in
+        "Divide into x files")
+            divide_into_files "$FILE" "$PAGES"
+            ;;
+        "Number of pages per file")
+            pages_per_file "$FILE" "$PAGES"
+            ;;
+        "Extract pages")
+            extract_pages "$FILE" "$PAGES"
+            ;;
+        *)
+            zenity --error --text="Invalid option selected."
+            exit 1
+            ;;
+    esac
+}
+
+divide_into_files() {
+    FILE="$1"
+    PAGES="$2"
+    NUM_FILES=$(zenity --entry --title="Divide into x files" --text="Enter the number of files:" --entry-text="2")
+
+    if ! [[ "$NUM_FILES" =~ ^[0-9]+$ ]]; then
+        zenity --error --text="Invalid number of files."
+        exit 1
+    fi
+
+    PAGES_PER_FILE=$((PAGES / NUM_FILES))
+    REMAINDER=$((PAGES % NUM_FILES))
+
+    for ((i=0; i<NUM_FILES; i++)); do
+        START=$((i * PAGES_PER_FILE + 1))
+        END=$((START + PAGES_PER_FILE - 1))
+        if [[ $i -eq $((NUM_FILES - 1)) && $REMAINDER -ne 0 ]]; then
+            END=$((END + REMAINDER))
+        fi
+        OUTPUT="${FILE%.*}_part_$((i + 1)).pdf"
+        pdftk "$FILE" cat "$START-$END" output "$OUTPUT"
+    done
+}
+
+pages_per_file() {
+    FILE="$1"
+    PAGES="$2"
+    PAGES_PER_FILE=$(zenity --entry --title="Number of pages per file" --text="Enter the number of pages per file:" --entry-text="4")
+
+    if ! [[ "$PAGES_PER_FILE" =~ ^[0-9]+$ ]]; then
+        zenity --error --text="Invalid number of pages."
+        exit 1
+    fi
+
+    NUM_FILES=$((PAGES / PAGES_PER_FILE))
+    REMAINDER=$((PAGES % PAGES_PER_FILE))
+
+    for ((i=0; i<NUM_FILES; i++)); do
+        START=$((i * PAGES_PER_FILE + 1))
+        END=$((START + PAGES_PER_FILE - 1))
+        OUTPUT="${FILE%.*}_part_$((i + 1)).pdf"
+        pdftk "$FILE" cat "$START-$END" output "$OUTPUT"
+    done
+
+    if [[ $REMAINDER -ne 0 ]]; then
+        START=$((NUM_FILES * PAGES_PER_FILE + 1))
+        OUTPUT="${FILE%.*}_part_$((NUM_FILES + 1)).pdf"
+        pdftk "$FILE" cat "$START-$PAGES" output "$OUTPUT"
+    fi
+}
+
+extract_pages() {
+    FILE="$1"
+    PAGES="$2"
+    RANGE=$(zenity --entry --title="Extract pages" --text="Enter the range of pages to extract (e.g., 1-5 or 3):" --entry-text="1-5")
+
+    if ! [[ "$RANGE" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        zenity --error --text="Invalid range of pages."
+        exit 1
+    fi
+
+    OUTPUT="${FILE%.*}_extracted.pdf"
+    pdftk "$FILE" cat "$RANGE" output "$OUTPUT"
+}
+
+main "$@"
