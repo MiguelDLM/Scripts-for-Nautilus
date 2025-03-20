@@ -1,0 +1,109 @@
+#!/bin/bash
+
+main() {
+    FILES="$NEMO_SCRIPT_SELECTED_FILE_PATHS"
+
+    check_dependencies
+
+    check_files "$FILES"
+
+    # Let user choose compression level
+    QUALITY=$(choose_quality)
+
+    compress_files "$FILES" "$QUALITY"
+}
+
+check_dependencies() {
+    GS_VERSION=$(gs --version 2>/dev/null)
+
+    if [[ "${GS_VERSION}none" = "none" ]]; then
+        zenity --error --width 300 --text="Ghostscript is not installed. Please install it to use this script."
+        exit 1
+    fi
+}
+
+choose_quality() {
+    # Different quality presets
+    QUALITY=$(zenity --list --title="Choose compression level" --radiolist \
+        --column="Select" --column="Quality" --column="Description" \
+        TRUE "screen" "Low quality, high compression (72 dpi)" \
+        FALSE "ebook" "Medium quality, good compression (150 dpi)" \
+        FALSE "printer" "High quality, less compression (300 dpi)" \
+        FALSE "prepress" "Very high quality, minimal compression (300+ dpi)" \
+        --width=500 --height=250)
+
+    if [[ -z "$QUALITY" ]]; then
+        zenity --error --width 300 --text="No compression level selected. Exiting."
+        exit 1
+    fi
+
+    echo "$QUALITY"
+}
+
+check_files() {
+    FILES="$1"
+
+    echo "$FILES" | while read FILE; do
+        if [ -n "$FILE" ]; then
+            FILETYPE=$(file "$FILE")
+            
+            echo "$FILETYPE" | grep PDF &> /dev/null
+
+            if [[ $? != 0 ]]; then 
+                zenity --width=640 --error --text="File $FILE is not a PDF:\n$FILETYPE" && exit 1
+                if [ "$?" -eq 1 ]; then
+                    exit
+                fi
+            fi
+        fi
+    done
+}
+
+compress_files() {
+    FILES="$1"
+    QUALITY="$2"
+
+    NUM_FILES=$(echo "$FILES" | grep -v '^$' | wc -l)
+
+    (
+        i=0 
+        echo "$FILES" | while read FILE; do
+            if [ -n "$FILE" ]; then 
+                PERCENTAGE=$(bc -l <<< "($i/$NUM_FILES)*100")
+                
+                echo "# Compressing $(basename "$FILE") ($((i+1))/$NUM_FILES)"
+                echo "${PERCENTAGE%.*}"
+
+                OUTPUT_FILE="${FILE%.*}_compressed.pdf"
+                
+                gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 \
+                   -dPDFSETTINGS=/$QUALITY -dNOPAUSE -dQUIET -dBATCH \
+                   -sOutputFile="$OUTPUT_FILE" "$FILE"
+                
+                i=$((i+1))
+                
+                ORIG_SIZE=$(du -h "$FILE" | cut -f1)
+                NEW_SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
+                
+                echo "# Finished: $(basename "$FILE") ($ORIG_SIZE) → $(basename "$OUTPUT_FILE") ($NEW_SIZE)"
+            fi
+        done
+
+        echo "# Compression complete!"
+        echo "100"
+    ) |
+    zenity --progress \
+      --title="Compressing PDFs" \
+      --text="Starting..." \
+      --percentage=0 \
+      --auto-close
+
+    if [ "$?" -eq 1 ]; then
+        zenity --info --text="Compression canceled."
+        exit
+    fi
+
+    zenity --info --width 300 --text="Successfully compressed $NUM_FILES PDF files."
+}
+
+main
